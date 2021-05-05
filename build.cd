@@ -1,0 +1,54 @@
+options: -s
+
+define
+	album		"Nobelia"
+	publisher	"JEFFREY JANSSEN"
+	preparer	"JEFFREY JANSSEN"
+
+	volume	"Nobelia"	in	"DISK/CDI_BOMB.CDI"
+
+	copyright	file	Copyright	from "BUILD/COPYRGHT.TXT"
+	abstract	file	Abstract	from "BUILD/ABSTRACT.TXT"
+	biblio		file	Biblio		from "BUILD/BIBLIOGR.TXT"
+	message							from "BUILD/MESSAGE.TXT"
+
+	application file	CdiBomb     from "BUILD/CDI_BOMB"
+
+	yellow      file    TitleScreen from "BUILD/TITLE.BIN"
+	yellow		file	Tileset		from "BUILD/TILES.BIN"
+	yellow      file    SfxData     from "BUILD/SFX.BIN"
+	
+	yellow      file    PlaneAPal   from "BUILD/PLANE_A.PAL"
+	yellow      file    PlaneBPal   from "BUILD/PLANE_B.PAL"
+
+	
+
+	yellow      file    Level01     from "BUILD/LEVEL01.NBL"
+	yellow      file    Level02     from "BUILD/LEVEL02.NBL"
+	yellow      file    Level03     from "BUILD/LEVEL03.NBL"
+	yellow      file    Level04     from "BUILD/LEVEL04.NBL"
+
+	green       file    DataRtf     from record data in channel 0 from
+										 "BUILD/TILES.BIN",
+										 "BUILD/TITLE.BIN",
+										 "BUILD/SFX.BIN"
+
+	green       file    MusicRtf    from block  real_time audio in channel 0 from "BUILD/M00_GWLD.ACM">
+	                                            real_time audio in channel 1 from "BUILD/M01_TRAV.ACM">
+                                               
+
+{
+	"COPYRGHT.TXT"	owner 0.0 protection 0x111	from	Copyright
+	"ABSTRACT.TXT"	owner 0.0 protection 0x111	from	Abstract
+	"BIBLIOGR.TXT"	owner 0.0 protection 0x111	from	Biblio
+	"CDI_BOMB"      owner 0.0 protection 0x555	from	CdiBomb
+	"MUSIC.RTF"     owner 0.0 protection 0x111  from    MusicRtf
+	"DATA.RTF"      owner 0.0 protection 0x111  from    DataRtf
+	"PLANE_A.PAL"   owner 0.0 protection 0x111  from    PlaneAPal
+	"PLANE_B.PAL"   owner 0.0 protection 0x111  from    PlaneBPal
+	"LEVEL01.NBL"   owner 0.0 protection 0x111  from    Level01
+	"LEVEL02.NBL"   owner 0.0 protection 0x111  from    Level02
+	"LEVEL03.NBL"   owner 0.0 protection 0x111  from    Level03
+	"LEVEL04.NBL"   owner 0.0 protection 0x111  from    Level04
+}
+
