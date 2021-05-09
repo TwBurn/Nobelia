@@ -73,7 +73,6 @@ void loadLevelFile(filename)
     u_char *filename;
 {
     FILE *file = fopen(filename, "r");
-	printf(file);
 	fread(&gameLevel, 1, sizeof(Level), file);
 	fclose(file);
 }

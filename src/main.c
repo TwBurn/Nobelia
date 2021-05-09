@@ -46,7 +46,7 @@ int main(argc, argv)
 	char* argv[];
 {
 	int curInput, oldInput;
-	printf(BUILD_VERSION);
+	/*printf(BUILD_VERSION);*/
 	initSystem();
 	gameStart();
 
