@@ -1,0 +1,26 @@
+volume {
+  system_id [CD-RTOS CD-BRIDGE]
+  volume_id [Nobelia]
+  volume_set_id [Nobelia]
+  publisher_id [JEFFREY JANSSEN]
+  preparer_id [JEFFREY JANSSEN]
+  application_id [CDI_BOMB]
+  copyright_file_id [COPYRGHT.TXT]
+  abstract_file_id [ABSTRACT.TXT]
+  bibliographic_file_id [BIBLIOGR.TXT]
+}
+
+dir {
+	file! COPYRGHT.TXT
+	file! ABSTRACT.TXT
+	file! BIBLIOGR.TXT
+	file! CDI_BOMB
+	xafile! MUSIC.RTF
+	file! DATA.RTF
+	file! PLANE_A.PAL
+	file! PLANE_B.PAL
+	file! LEVEL01.NBL
+	file! LEVEL02.NBL
+	file! LEVEL03.NBL
+	file! LEVEL04.NBL
+}

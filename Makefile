@@ -13,7 +13,7 @@ AS      = m68k-elfos9-as
 ASFLAGS = -g -march=68000 -mcpu=68000
 LD      = m68k-elfos9-gcc
 ELF2MOD = elf2mod
-MASTER  = master.exe
+MASTER  = psxbuild
 RM      = rm
 
 #FILES TO COMPILE
@@ -24,11 +24,19 @@ LDSCRIPT = cdi.lds
 LDPARAM = -Wl,-q -nostdlib -T $(LDSCRIPT)
 
 cd: all
-	$(MASTER) build.cd
+	$(MASTER) --cuefile build.cat NOBELIA.bin
 
-all: force_build_date link
+all: force_build_date link $(BUILD)/MUSIC.RTF $(BUILD)/DATA.RTF
 
 rebuild: clean cd
+
+$(BUILD)/MUSIC.RTF: $(BUILD)/M00_GWLD.ACM $(BUILD)/M01_TRAV.ACM
+	ruby acm2xa.rb $@ $+
+
+$(BUILD)/DATA.RTF: $(BUILD)/TILES.BIN $(BUILD)/TITLE.BIN $(BUILD)/SFX.BIN
+	dd if=$(BUILD)/TILES.BIN of=$@ bs=2048 conv=sync
+	dd if=$(BUILD)/TITLE.BIN of=$@ bs=2048 conv=notrunc,sync oflag=append
+	dd if=$(BUILD)/SFX.BIN of=$@ bs=2048 conv=notrunc,sync oflag=append
 
 link: $(FILES) $(LDSCRIPT) | $(OUTPUT)
 	$(LD) $(LDPARAM) -o $(OUTPUT)/$(NAME) $(FILES) -lc -lgcc
@@ -81,4 +89,8 @@ clean:
 	-@$(RM) $(OUTPUT)/*.o
 	-@$(RM) $(OUTPUT)/$(NAME)
 	-@$(RM) $(BUILD)/$(NAME)
+	-@$(RM) $(BUILD)/DATA.RTF
+	-@$(RM) $(BUILD)/MUSIC.RTF
+	-@$(RM) NOBELIA.bin
+	-@$(RM) NOBELIA.cue
 
