@@ -1,10 +1,4 @@
-#include <csd.h>
-#include <sysio.h>
-#include <ucm.h>
-#include <cdfm.h>
-#include <memory.h>
-#include <stdio.h>
-#include <setsys.h>
+#include "sys.h"
 #include "build.h"
 #include "graphics.h"
 

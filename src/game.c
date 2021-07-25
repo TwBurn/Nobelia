@@ -1,7 +1,7 @@
-#include <csd.h>
-#include <sysio.h>
 #include <stdio.h>
-#include <ucm.h>
+#include <string.h>
+#include <memory.h>
+#include "sys.h"
 
 #include "game.h"
 #include "input.h"
@@ -70,11 +70,11 @@ char  StartBombSize;
 short StartBombType;
 
 void loadLevelFile(filename)
-    u_char *filename;
+    char *filename;
 {
-    FILE *file = fopen(filename, "r");
-	fread(&gameLevel, 1, sizeof(Level), file);
-	fclose(file);
+    int file = open(filename, READ_);
+	read(file, &gameLevel, sizeof(Level));
+	close(file);
 }
 
 int levelNumber;
@@ -103,7 +103,7 @@ void updateHud()
 void loadLevel()
 {
 	/* Load Level File */
-	sprintf(levelName, "LEVEL%02d.NBL\n", levelNumber);
+	sprintf(levelName, "LEVEL%02d.NBL", levelNumber);
 	loadLevelFile(levelName);
 	initObjectList();
 	initPlayer();

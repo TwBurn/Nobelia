@@ -1,6 +1,5 @@
-#include <csd.h>
-#include <sysio.h>
-#include <ucm.h>
+#include <stdio.h>
+#include "sys.h"
 #include "game.h"
 #include "audio.h"
 

@@ -1,5 +1,4 @@
-#include <sysio.h>
-#include <ucm.h>
+#include "sys.h"
 #include "game.h"
 #include "audio.h"
 

@@ -1,9 +1,5 @@
-#include <strings.h>
-#include <csd.h>
-#include <sysio.h>
-#include <cdfm.h>
 #include <stdio.h>
-#include <memory.h>
+#include "sys.h"
 #include "audio.h"
 
 #define SIG_AUDIO      0xA00

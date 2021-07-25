@@ -1,9 +1,4 @@
-#include <strings.h>
-#include <csd.h>
-#include <sysio.h>
-#include <ucm.h>
-#include <stdio.h>
-#include <memory.h>
+#include "sys.h"
 #include "video.h"
 
 int videoPath;

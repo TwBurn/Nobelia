@@ -1,7 +1,6 @@
-#include <sysio.h>
-#include <ucm.h>
 #include <stdio.h>
 #include <memory.h>
+#include "sys.h"
 #include "video.h"
 #include "graphics.h"
 
@@ -54,11 +53,11 @@ void createVideoBuffers()
 
 void loadPalette(plane, filename)
     int plane;
-    u_char *filename;
+    char *filename;
 {
-    FILE *file = fopen(filename, "r");
-	fread(fctBuffer, sizeof(int), 130, file);
-	fclose(file);
+    int file = open(filename, READ_);
+	read(file, fctBuffer, sizeof(int) * 130);
+	close(file);
 	dc_wrfct(videoPath, (plane == PA) ? fctA : fctB, 0, 130, fctBuffer);
 	dc_exec(videoPath, fctA, fctB);
 }

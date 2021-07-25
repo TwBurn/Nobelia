@@ -1,5 +1,4 @@
-#include <csd.h>
-#include <sysio.h>
+#include "sys.h"
 #include "input.h"
 
 #define PT_CENTER 512
