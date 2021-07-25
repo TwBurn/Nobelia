@@ -1,0 +1,28 @@
+name: Delivery a disc image
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - run: docker run --rm -v $PWD:/work -w /work $(docker build -q .) make
+      - uses: actions/upload-artifact@v2
+        with:
+          name: image
+          path: |
+            NOBELIA.cue
+            NOBELIA.bin
+          if-no-files-found: error
+      - run: zip Nobelia-${GITHUB_REF#refs/tags/}.zip NOBELIA.cue NOBELIA.bin
+        if: startsWith(github.ref, 'refs/tags/')
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          # ignoring slug, expecting single zip file
+          files: Nobelia-*.zip
+          draft: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
