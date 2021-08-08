@@ -4,7 +4,7 @@ volume {
   volume_set_id [Nobelia]
   publisher_id [JEFFREY JANSSEN]
   preparer_id [JEFFREY JANSSEN]
-  application_id [CDI_BOMB]
+  application_id [CDI_BOMB.APP]
   copyright_file_id [COPYRGHT.TXT]
   abstract_file_id [ABSTRACT.TXT]
   bibliographic_file_id [BIBLIOGR.TXT]
@@ -14,7 +14,7 @@ dir {
   file COPYRGHT.TXT
   file ABSTRACT.TXT
   file BIBLIOGR.TXT
-  file CDI_BOMB
+  file CDI_BOMB.APP
   xafile MUSIC.RTF
   file DATA.RTF
   file PLANE_A.PAL

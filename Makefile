@@ -1,7 +1,8 @@
 SHELL=/bin/bash
 
 #Configuration, name, folders
-NAME    = CDI_BOMB
+NAME    = CDI_BOMB.APP
+ELF     = cdi_bomb.elf
 OUTPUT  = out
 BUILD   = build
 SRC     = src
@@ -39,8 +40,8 @@ $(BUILD)/DATA.RTF: $(BUILD)/TILES.BIN $(BUILD)/TITLE.BIN $(BUILD)/SFX.BIN
 	dd if=$(BUILD)/SFX.BIN of=$@ bs=2048 conv=notrunc,sync oflag=append
 
 link: $(FILES) $(LDSCRIPT) | $(OUTPUT)
-	$(LD) $(LDPARAM) -o $(OUTPUT)/$(NAME) $(FILES) -lc -lgcc
-	$(ELF2MOD) $(OUTPUT)/$(NAME) $(BUILD)/$(NAME)
+	$(LD) $(LDPARAM) -o $(OUTPUT)/$(ELF) $(FILES) -lc -lgcc
+	$(ELF2MOD) $(OUTPUT)/$(ELF) $(BUILD)/$(NAME)
 
 $(OUTPUT)/cstart.o : $(SRC)/cstart.s | $(OUTPUT)
 	$(AS) $(ASFLAGS) -o $@ $<
@@ -87,7 +88,7 @@ force_build_date:
 
 clean:
 	-@$(RM) $(OUTPUT)/*.o
-	-@$(RM) $(OUTPUT)/$(NAME)
+	-@$(RM) $(OUTPUT)/$(ELF)
 	-@$(RM) $(BUILD)/$(NAME)
 	-@$(RM) $(BUILD)/DATA.RTF
 	-@$(RM) $(BUILD)/MUSIC.RTF
