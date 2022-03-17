@@ -1,19 +1,22 @@
 Copyright (c) Jeffrey Janssen
 
-All assets in the game were either used from Open resources or created/adapted by me.
+All assets in the game were either used in license, open resources, or created/adapted by me.
 
-Titlescreen:
-	Graphics: http://clipart-library.com/clipart/348852.htm
-	Music:    Grassy World by Matthew Pablo: https://opengameart.org/content/grassy-world-overture-8bitorchestral
+Backgrounds:
+	Licensed for use - Shutterstock
 
 Level sprites:
-	Armando Montero (ArMM1998)
-	https://opengameart.org/content/zelda-like-tilesets-and-sprites
-
-Level Music:
-	The Traveller by Viktor Kraus: https://opengameart.org/content/the-traveller
+	Armando Montero (ArMM1998): https://opengameart.org/content/zelda-like-tilesets-and-sprites
 
 Character Sprites:
-	Lanea Zimmerman (Sharm), Evert, withthelove
-	https://opengameart.org/content/tiny-16-expanded-character-sprites
+	Lanea Zimmerman (Sharm), Evert, withthelove: https://opengameart.org/content/tiny-16-expanded-character-sprites
 
+Music:
+	Grassy World by Matthew Pablo: https://opengameart.org/content/grassy-world-overture-8bitorchestral
+	The Traveller by Viktor Kraus: https://opengameart.org/content/the-traveller
+	Into Deep Space by Andy Sitkov - Licensed for use
+	Be Positive by Andy Sitkov - Licensed for use
+	Lyric Mood by Andy Sitkov - Licensed for use
+	Love Through The Years by Andy Sitkov - Licensed for use
+	Heroes by Andy Sitkov - Licensed for use
+	Something From The Past by Andy Sitkov - Licensed for Use

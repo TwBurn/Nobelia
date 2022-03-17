@@ -9,6 +9,7 @@
 int videoPath;
 int fctA, fctB, lctA, lctB;
 u_int fctBuffer[FCT_SIZE];
+u_int lineSkip;
 u_int pixelStart;
 
 u_int *lctAddress (plane, lctid)
@@ -25,16 +26,6 @@ u_int *lctAddress (plane, lctid)
 	dc_dllct(videoPath, lctDummy);
 	/* the address is in the lower 24 bits of the link instr */
 	return (u_int*) (lnkInstr & 0x00ffffff);
-}
-
-void clearFct() {
-	int i;
-	for (i = 0; i < FCT_SIZE; i++) {
-		fctBuffer[i] = cp_nop();
-	}
-
-    dc_wrfct(videoPath, fctA, 0, FCT_SIZE, fctBuffer);
-    dc_wrfct(videoPath, fctB, 0, FCT_SIZE, fctBuffer);
 }
 
 int initFCT(plane, size)
@@ -67,8 +58,9 @@ void setupPlaneA() {
 	fctBuffer[5] = cp_mcol(PA, 0, 0, 0); /* Set mask color to black: rgb(0,0,0) */
 	fctBuffer[6] = cp_yuv(PA, 16, 128, 128); /* Set DYUV start value */
 	fctBuffer[7] = cp_phld(PA, PH_OFF, 1); /* Set Mosaic (pixel_hold) off, size = 1 */
-	fctBuffer[8] = cp_icf(PA, ICF_MAX); /* Max Image Contributing Factor */
-	fctBuffer[9] = cp_dprm(RMS_NORMAL, PRF_X2, BP_NORMAL);  /* Reload Display Parameters */
+	fctBuffer[8] = cp_icf(PA, ICF_MIN); /* Min Image Contributing Factor */
+	fctBuffer[9] = cp_matte(0, MO_END, MF_MF0, ICF_MAX, 0);
+	fctBuffer[10] = cp_dprm(RMS_NORMAL, PRF_X2, BP_NORMAL);  /* Reload Display Parameters */
 	
 	dc_wrfct(videoPath, fctA, 0, 10, fctBuffer);
 }
@@ -86,8 +78,9 @@ void setupPlaneB() {
 	fctBuffer[5] = cp_mcol(PB, 0, 0, 0); /* Set mask color to black: rgb(0,0,0) */
 	fctBuffer[6] = cp_yuv(PB, 16, 128, 128); /* Set DYUV start value */
 	fctBuffer[7] = cp_phld(PB, PH_OFF, 1); /* Set Mosaic (pixel_hold) off, size = 1 */
-	fctBuffer[8] = cp_icf(PB, ICF_MAX); /* Max Image Contributing Factor */
-	fctBuffer[9] = cp_dprm(RMS_NORMAL, PRF_X2, BP_NORMAL);  /* Reload Display Parameters */
+	fctBuffer[8] = cp_icf(PB, ICF_MIN); /* Min Image Contributing Factor */
+	fctBuffer[9] = cp_nop();
+	fctBuffer[10] = cp_dprm(RMS_NORMAL, PRF_X2, BP_NORMAL);  /* Reload Display Parameters */
 
 	dc_wrfct(videoPath, fctB, 0, 10, fctBuffer);
 }
@@ -95,32 +88,40 @@ void setupPlaneB() {
 void initVideo() {
 	char *devName = csd_devname(DT_VIDEO, 1); /* Get Video Device Name */
 	char *devParam;
-    int palMode;
+    int videoMode;
 
 	videoPath = open(devName, UPDAT_);        /* Open Video Device */
 	devParam = csd_devparam(devName);
 
-    palMode = strcmp(devParam, "LI=\"625\":\0");
-	
+    videoMode = findstr(1, devParam, "LI=\"625\":") ? 0 : (findstr(1, devParam, "TV") ? 1 : 2) ; /* First parameter is first character to start searching at; 1-based, not 0-based! */
+	/*printf("Video: %s %d\n", devParam, videoMode);*/
 	free(devName); /* Release memory */
 	free(devParam);
 
 	/* Setup Video */
-	if (palMode == 0) {
+	if (videoMode == 0) { /* PAL - 384x280 */
 		dc_setcmp(videoPath, 0);
+		lineSkip = 0;
 		pixelStart = 0;
 	}
-	else {
+	else if (videoMode == 1) { /* NTSC TV - 384x240 */
+		dc_setcmp(videoPath, 0);
+		lineSkip = 20;
+		pixelStart = lineSkip * SCREEN_WIDTH;
+	}
+	else { /* NTSC Monitor - 360x240 */
 		dc_setcmp(videoPath, 1);
+		lineSkip = 20;
 		pixelStart = 20 * SCREEN_WIDTH;
 	}
 	
 	dc_intl(videoPath, 0); /* No interlace */
 
+	gc_hide(videoPath); /* Hide the Graphics Cursor */
+
 	setupPlaneA();
 	setupPlaneB();
 	dc_exec(videoPath, fctA, fctB);
-	clearFct();
 }
 
 void closeVideo() {

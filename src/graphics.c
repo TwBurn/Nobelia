@@ -5,34 +5,53 @@
 #include "video.h"
 #include "graphics.h"
 
+#define INTRO_SIZE 4096
+#define DISC_ERROR_SIZE 10240
+
+u_int frameDone = 0, frameTick = 0;
+
 SpritePlane spA1, spA2;
 SpritePlane *spActive = &spA1, *spDraw = &spA2;
 
 ImagePlane ipB1, ipB2;
-ImagePlane *ipActive = &ipB1, *ipDraw = &ipB2;
+ImagePlane *ipPrim = &ipB1;
+ImagePlane *ipSec  = &ipB2;
 
 u_char *spriteSheet;
-int curICF = ICF_MAX;
+u_char *tileSheet;
+int curIcfA = ICF_MAX;
+int curIcfB = ICF_MAX;
 
 u_char *hudBuffer;
+u_char *timerBuffer;
+u_char *tileBuffer;
+
+u_char* rleBuffer;
+
+u_char shadowColors[] = {0,1,1,1,2,3,4,5,6,7,8,13,14,15,16,17,1,1,1,1,18,19,20,39,36,27,4,3,30,31,1,1,1,1,32,33,34,35,41,42,43,33,1,1,1,1,44,45,46,51,52,43,43,33,1,33,54,55,56,61,62,63,64,33,1};
+/*u_char shadowColors[] = {0,1,1,2,3,4,5,6,7,8,9,12,13,14,15,16,17,1,1,18,19,20,21,38,25,26,27,6,29,30,31,1,1,1,33,34,35,36,39,40,41,42,43,33,1,44,45,46,47,50,51,42,42,43,43,54,55,56,57,60,61,62,63,64,33};*/
 
 void fillBuffer(buffer, data, size)
-	u_int *buffer, data, size;
+	register u_int *buffer;
+	register u_int data, size;
 {
 	int i;
-	for (i = 0; i < (size / 4); i++) {
-		buffer[i] = data;
+	size = size >> 2;
+	for (i = 0; i < size; i++) {
+		*buffer++ = data;
 	}
 }
 
 void fillVideoBuffer(videoBuffer, data)
-	u_int *videoBuffer, data;
+	register u_int *videoBuffer;
+	u_int data;
 {
 	fillBuffer(videoBuffer, data, VBUFFER_SIZE);
 }
 
 void createVideoBuffers()
 {
+	setIcf(ICF_MIN, ICF_MIN);
 	spA1.videoBuffer = (u_char*)srqcmem(VBUFFER_SIZE, VIDEO1);
 	spA2.videoBuffer = (u_char*)srqcmem(VBUFFER_SIZE, VIDEO1);
 
@@ -42,80 +61,291 @@ void createVideoBuffers()
 	fillVideoBuffer(spA1.videoBuffer, 0);
 	fillVideoBuffer(spA2.videoBuffer, 0);
 	fillVideoBuffer(ipB1.videoBuffer, 0);
-	fillVideoBuffer(ipB2.videoBuffer, 0);
+		
+	hudBuffer   = spA1.videoBuffer + SCREEN_SIZE;
+	timerBuffer = spA2.videoBuffer + SCREEN_SIZE;
+	tileBuffer  = ipB1.videoBuffer + SCREEN_SIZE;
 
-	hudBuffer = spA1.videoBuffer + (SCREEN_WIDTH * SCREEN_HEIGHT);
-
-	dc_wrli(videoPath, lctA, 1, 0, cp_dadr((int)spA1.videoBuffer + pixelStart));
-	dc_wrli(videoPath, lctA, 1, 1, cp_sig());
-	dc_wrli(videoPath, lctB, 1, 0, cp_dadr((int)ipB1.videoBuffer + pixelStart));
-	dc_exec(videoPath, fctA, fctB);
+	dc_wrli(videoPath, lctA, 0, 1, cp_dadr((int)spA1.videoBuffer + pixelStart));
+	dc_wrli(videoPath, lctA, 0, 0, cp_sig());
+	dc_wrli(videoPath, lctB, 0, 1, cp_dadr((int)ipB1.videoBuffer + pixelStart));
 }
 
-void loadPalette(plane, filename)
+void readPalette(plane, filename)
     int plane;
     u_char *filename;
 {
     FILE *file = fopen(filename, "r");
 	fread(fctBuffer, sizeof(int), 130, file);
 	fclose(file);
-	dc_wrfct(videoPath, (plane == PA) ? fctA : fctB, 0, 130, fctBuffer);
-	dc_exec(videoPath, fctA, fctB);
+	dc_wrfct(videoPath, (plane == PA) ? fctA : fctB, FCT_PAL_START, 130, fctBuffer);
 }
 
-void loadImage(file, videoBuffer)
+int readImage(file, videoBuffer)
     int file;
 	u_char *videoBuffer;
 {
-	read(file, videoBuffer, VBUFFER_SIZE);
+	return read(file, videoBuffer, VBUFFER_SIZE);
 }
 
-void loadSpriteSheet(file)
+
+int readTileSheet(file)
 	int file;
 {
-	read(file, spriteSheet, 256*256);
+	return read(file, tileSheet, 256*256);
 }
 
-void drawTile(tile, position, videoBuffer) 
+int readSpriteSheet(file)
+	int file;
+{
+	return read(file, spriteSheet, 256*256);
+}
+
+int readIntroData(file)
+{
+	return read(file, rleBuffer, INTRO_SIZE);
+}
+
+int readDiscError(file)
+{
+	return read(file, rleBuffer, DISC_ERROR_SIZE);
+}
+
+
+void clearTileBuffer(background)
+	register int background;
+{
+	register u_int* src = (u_int*)tileBuffer;
+	register int i;
+
+	for (i = 0; i < 16; i++) {
+		/* Clear with background */
+		*src++=background; *src++=background; *src++=background; *src++=background;
+	}
+}
+
+void drawTileBuffer(position, background)
+	int position;
+	register int background;
+{
+	register u_int* src = (u_int*)tileBuffer;
+	register u_int* dst = (u_int*)(ipPrim->videoBuffer + position);
+
+	register int i;
+
+	for (i = 0; i < 16; i++) {
+		/* Copy 16 bytes, clear with background */
+		*dst++=*src; *src++=background;
+		*dst++=*src; *src++=background;
+		*dst++=*src; *src++=background;
+		*dst++=*src; *src++=background;
+		dst += (SCREEN_WIDTH - 16) >> 2;
+	}
+}
+
+void drawTile(tile) 
+	u_char tile;
+{
+	register u_int* src = (u_int*)(tileSheet + ((tile & 0x0f) << 4) + ((tile & 0xf0) << 8));
+	register u_int* dst = (u_int*)tileBuffer;
+
+	int i;
+
+	for (i = 0; i < 16; i++) {
+		/* Copy 16 bytes */
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;	
+		src += (256 - 16) >> 2;
+	}
+}
+
+void drawTransTile(tile) 
+	u_char tile;
+{
+	register u_char* src = tileSheet + ((tile & 0x0f) << 4) + ((tile & 0xf0) << 8);
+	register u_char* dst = tileBuffer;
+	register u_char tmp;
+	int y;
+	
+	
+	for (y = 0; y < 16; y++) {
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp == 1) { *dst = shadowColors[*dst]; } else if (tmp) { *dst = tmp; } dst++;
+
+		src += 256 - 16;
+	}
+}
+
+void drawSpriteTrans(tile, position, videoBuffer)
 	u_char tile;
 	u_int position;
 	u_char *videoBuffer;
 {
-	u_char* src = spriteSheet + ((tile & 0x0f) << 4) + ((tile & 0xf0) << 8);
-	u_char* dst = videoBuffer + position;
+	register u_char* src = spriteSheet + ((tile & 0x0f) << 4) + ((tile & 0xf0) << 8);
+	register u_char* dst = videoBuffer + position;
+	register u_char tmp;
+	register int y;
+	
+	for (y = 0; y < 16; y++) {
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
 
-	memcpy(dst +  0 * SCREEN_WIDTH, src +  0 * 256, 16);
-	memcpy(dst +  1 * SCREEN_WIDTH, src +  1 * 256, 16);
-	memcpy(dst +  2 * SCREEN_WIDTH, src +  2 * 256, 16);
-	memcpy(dst +  3 * SCREEN_WIDTH, src +  3 * 256, 16);
-	memcpy(dst +  4 * SCREEN_WIDTH, src +  4 * 256, 16);
-	memcpy(dst +  5 * SCREEN_WIDTH, src +  5 * 256, 16);
-	memcpy(dst +  6 * SCREEN_WIDTH, src +  6 * 256, 16);
-	memcpy(dst +  7 * SCREEN_WIDTH, src +  7 * 256, 16);
-	memcpy(dst +  8 * SCREEN_WIDTH, src +  8 * 256, 16);
-	memcpy(dst +  9 * SCREEN_WIDTH, src +  9 * 256, 16);
-	memcpy(dst + 10 * SCREEN_WIDTH, src + 10 * 256, 16);
-	memcpy(dst + 11 * SCREEN_WIDTH, src + 11 * 256, 16);
-	memcpy(dst + 12 * SCREEN_WIDTH, src + 12 * 256, 16);
-	memcpy(dst + 13 * SCREEN_WIDTH, src + 13 * 256, 16);
-	memcpy(dst + 14 * SCREEN_WIDTH, src + 14 * 256, 16);
-	memcpy(dst + 15 * SCREEN_WIDTH, src + 15 * 256, 16);
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+
+		dst += SCREEN_WIDTH - 16;
+		src += 256 - 16;
+	}
+}
+
+void drawSpriteTile(tile, position, videoBuffer)
+	u_char tile;
+	u_int position;
+	u_char *videoBuffer;
+{
+	register u_char* src = spriteSheet + ((tile & 0x0f) << 4) + ((tile & 0xf0) << 8);
+	register u_char* dst = videoBuffer + position;
+	register int i;
+	
+	for (i = 0; i < 16; i++) {
+		/* Copy 16 bytes */
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+
+		dst += SCREEN_WIDTH - 16;
+		src += 256 - 16;
+	}
+}
+
+void clearSpriteTile(position, videoBuffer)
+	u_int position;
+	u_char *videoBuffer;
+{
+	register u_char* dst = videoBuffer + position;
+	register int i;
+	
+	for (i = 0; i < 16; i++) {
+		/* Copy 16 bytes */
+		*dst++=0; *dst++=0; *dst++=0; *dst++=0;
+		*dst++=0; *dst++=0; *dst++=0; *dst++=0;
+		*dst++=0; *dst++=0; *dst++=0; *dst++=0;
+		*dst++=0; *dst++=0; *dst++=0; *dst++=0;
+
+		dst += SCREEN_WIDTH - 16;
+	}
+}
+
+void drawTimerTile(tile, x)
+	char tile, x;
+{
+	register u_int* src = (u_int*)(spriteSheet + HUD_FONT + ((tile & 0x20) << 6) + ((tile & 0x1f) << 3));
+	register u_int* dst = (u_int*)(timerBuffer + (x << 3));
+
+	int i;
+
+	for (i = 0; i < 8; i++) {
+		/* Copy 8 bytes */
+		*dst++=*src++; *dst++=*src++;
+
+		dst += (TIMER_WIDTH - 8) >> 2;
+		src += (256 - 8) >> 2;
+	}
+}
+
+void drawTimerTime(time)
+	u_int time;
+{
+	u_int res;
+	/* Strip out frames */
+	time = time / GAME_FPS;
+	
+	/* Seconds */
+	res = time % 60; time = time / 60;
+	drawTimerTile(0x20 + res % 10, 6);
+	drawTimerTile(0x20 + res / 10, 5);
+	drawTimerTile(0x2b, 4);
+	/* Minutes */
+	res = time % 60; time = time / 60;
+	drawTimerTile(0x20 + res % 10, 3);
+	drawTimerTile(0x20 + res / 10, 2);
+	drawTimerTile(0x2b, 1);
+	/* Hours */
+	drawTimerTile(0x20 + time % 10, 0);
+}
+
+void clearTimer()
+{
+	fillBuffer(timerBuffer, 0, TIMER_WIDTH * TIMER_HEIGHT);
+}
+
+void drawTimer(x, y, videoBuffer)
+	short x, y;
+	u_char *videoBuffer;
+{
+	register u_int* src = (u_int*)timerBuffer;
+	register u_int* dst = (u_int*)(videoBuffer + pixel_pos(x, y));
+
+	int i;
+
+	for (i = 0; i < 8; i++) {
+
+		/* Copy 56 bytes */
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; 
+
+		dst += (SCREEN_WIDTH - TIMER_WIDTH) >> 2;
+	}
 }
 
 void drawHudTile(tile, x)
 	char tile, x;
 {
-	u_char* src = spriteSheet + HGFX_START + (tile << 3);
-	u_char* dst = hudBuffer + (x << 3);
+	register u_int* src = (u_int*)(spriteSheet + HUD_FONT + ((tile & 0x20) << 6) + ((tile & 0x1f) << 3));
+	register u_int* dst = (u_int*)(hudBuffer + (x << 3));
 
-	memcpy(dst +  0 * HUD_WIDTH, src +  0 * 256, 8);
-	memcpy(dst +  1 * HUD_WIDTH, src +  1 * 256, 8);
-	memcpy(dst +  2 * HUD_WIDTH, src +  2 * 256, 8);
-	memcpy(dst +  3 * HUD_WIDTH, src +  3 * 256, 8);
-	memcpy(dst +  4 * HUD_WIDTH, src +  4 * 256, 8);
-	memcpy(dst +  5 * HUD_WIDTH, src +  5 * 256, 8);
-	memcpy(dst +  6 * HUD_WIDTH, src +  6 * 256, 8);
-	memcpy(dst +  7 * HUD_WIDTH, src +  7 * 256, 8);
+	int i;
+
+	for (i = 0; i < 8; i++) {
+		/* Copy 8 bytes */
+		*dst++=*src++; *dst++=*src++;
+
+		dst += (HUD_WIDTH - 8) >> 2;
+		src += (256 - 8) >> 2;
+	}
 }
 
 void clearHud()
@@ -127,37 +357,61 @@ void drawHud(x, y, videoBuffer)
 	short x, y;
 	u_char *videoBuffer;
 {
-	u_char* dst = videoBuffer + pixel_pos(x, y);
+	register u_int* src = (u_int*)hudBuffer;
+	register u_int* dst = (u_int*)(videoBuffer + pixel_pos(x, y));
 
-	memcpy(dst + 0 * SCREEN_WIDTH, hudBuffer + 0 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 1 * SCREEN_WIDTH, hudBuffer + 1 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 2 * SCREEN_WIDTH, hudBuffer + 2 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 3 * SCREEN_WIDTH, hudBuffer + 3 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 4 * SCREEN_WIDTH, hudBuffer + 4 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 5 * SCREEN_WIDTH, hudBuffer + 5 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 6 * SCREEN_WIDTH, hudBuffer + 6 * HUD_WIDTH, HUD_WIDTH);
-	memcpy(dst + 7 * SCREEN_WIDTH, hudBuffer + 7 * HUD_WIDTH, HUD_WIDTH);
-}
+	int i;
 
-void loadTilemap(videoBuffer, tilemap)
-	u_char *videoBuffer;
-	u_char *tilemap;
-{
-	u_short x;
-	u_short y;
-	u_short i = 0;
-	u_int origin;
+	for (i = 0; i < 8; i++) {
 
-	for (y = 0; y < TILES_Y; y++) {
-		for (x = 0; x < TILES_X; x++) {
-			drawTile(
-				tilemap[i++],
-				pixel_pos(x << 4, y << 4),
-				videoBuffer
-			);
-		}
+		/* Copy 96 bytes */
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+		*dst++=*src++; *dst++=*src++; *dst++=*src++; *dst++=*src++;
+
+		dst += (SCREEN_WIDTH - HUD_WIDTH) >> 2;
 	}
 }
+
+void copyRect(sourceBuffer, targetBuffer, x, y, width, height, sourceWidth)
+	u_char *sourceBuffer, *targetBuffer;
+	u_short x, y, width, height, sourceWidth;
+{
+	register u_char* dst = targetBuffer + y * SCREEN_WIDTH + x;
+	register u_char* src = sourceBuffer;
+	register u_short h, w;
+	register u_char tmp;
+
+	for (h = 0; h < height; h++) {
+		for (w = 0; w < width; w++) {
+			tmp = *src++; if (tmp) { *dst = tmp; } dst++;
+		}
+		dst += SCREEN_WIDTH - width;
+		src += sourceWidth - width;
+	}
+}
+
+void clearRect(videoBuffer, x, y, width, height, color)
+	u_char *videoBuffer;
+	u_short x, y, width, height;
+	u_char color;
+{
+	register u_int value = (color << 24) | (color << 16) | (color << 8) | color;
+	register u_int* dst = (u_int*)(videoBuffer + y * SCREEN_WIDTH + x);
+	register u_short h, w;
+
+	width >>= 2;
+
+	for (h = 0; h < height; h++) {
+		for (w = 0; w < width; w++) *dst++ = value;
+		dst += (SCREEN_WIDTH >> 2) - width;
+	}
+
+}
+
 
 void clearSpriteBuffers()
 {
@@ -170,11 +424,7 @@ void clearSpriteBuffers()
 void clearSprites()
 {
 	while (spDraw->spriteCount) {
-		drawTile(
-			0xFF,
-			spDraw->spritePos[--spDraw->spriteCount],
-			spDraw->videoBuffer
-		);
+		clearSpriteTile(spDraw->spritePos[--spDraw->spriteCount], spDraw->videoBuffer);
 	}
 }
 
@@ -183,39 +433,111 @@ void swapSpriteBuffer()
 	SpritePlane* temp = spDraw;
 	spDraw = spActive;
 	spActive = temp;
-	dc_wrli(videoPath, lctA, 1, 0, cp_dadr((int)spActive->videoBuffer + pixelStart));
+	dc_wrli(videoPath, lctA, 0, 1, cp_dadr((int)spActive->videoBuffer + pixelStart));
+}
+
+void showPrimaryImageBuffer()
+{
+	dc_wrli(videoPath, lctB, 0, 1, cp_dadr((int)ipPrim->videoBuffer + pixelStart));
+}
+void showSecondaryImageBuffer()
+{
+	dc_wrli(videoPath, lctB, 0, 1, cp_dadr((int)ipSec->videoBuffer + pixelStart));
 }
 
 void drawSprite(tile, x, y)
+	register u_char tile;
+	register u_short x, y;
 {
 	u_int position = pixel_pos(x, y);
 	spDraw->spritePos[spDraw->spriteCount++] = position;
-	drawTile(tile, position, spDraw->videoBuffer);
+	drawSpriteTrans(tile, position, spDraw->videoBuffer);
 }
 
-void swapImageBuffer()
+void decodeClut(source, target)
+	register u_char* source;
+	register u_char* target;
 {
-	ImagePlane* temp = ipDraw;
-	ipDraw = ipActive;
-	ipActive = temp;
-	dc_wrli(videoPath, lctB, 1, 0, cp_dadr((int)ipActive->videoBuffer + pixelStart));
+	register int x, y;
+	register u_char count, value;
+
+	for (y = 0; y < SCREEN_HEIGHT; y++) {
+		x = SCREEN_WIDTH;
+
+		while (x) {
+			value = *source++;
+
+			if (value & 0x80) {
+				value &= 0x7F;
+				count = *source++;
+				if (count) {
+					while(count--) {
+						*target++ = value; x--;
+					}
+				}
+				else {
+					while (x) {
+						*target++ = value; x--;
+					}
+				}
+			}
+			else {
+				*target++ = value; x--;
+			}
+		}
+	}
 }
 
-void setICF(value)
-	int value;
-{
-	if      (value > ICF_MAX) curICF = ICF_MAX;
-	else if (value < ICF_MIN) curICF = ICF_MIN;
-	else                      curICF = value;
+void decodeIntro() {
+	decodeClut(rleBuffer, ipSec->videoBuffer);
+}
 
-	dc_wrli(videoPath, lctA, 1, 7, cp_icf(PA, curICF));
-	dc_wrli(videoPath, lctB, 1, 7, cp_icf(PB, curICF));
+void drawDiscError()
+{
+	dc_wrli(videoPath, lctA, 1, 7, cp_icf(PA, ICF_MIN));
+	dc_wrli(videoPath, lctB, 1, 7, cp_icf(PB, ICF_MIN));
+
+	decodeClut(rleBuffer, spActive->videoBuffer);
+	showPrimaryImageBuffer();
+
+	dc_wrli(videoPath, lctA, 1, 7, cp_icf(PA, ICF_MAX));
+}
+
+void clearDiscError()
+{
+	dc_wrli(videoPath, lctA, 1, 7, cp_icf(PA, ICF_MIN));
+	dc_wrli(videoPath, lctB, 1, 7, cp_icf(PB, ICF_MIN));
+
+	fillVideoBuffer(spActive->videoBuffer, 0);
+
+	setIcf(curIcfA, curIcfB);
+}
+
+void setIcf(icfA, icfB)
+	register int icfA, icfB;
+{
+	curIcfA = icfA > ICF_MAX ? ICF_MAX : (icfA < ICF_MIN ? ICF_MIN : icfA);
+	curIcfB = icfB > ICF_MAX ? ICF_MAX : (icfB < ICF_MIN ? ICF_MIN : icfB);
+
+	dc_wrli(videoPath, lctA, 1, 7, cp_icf(PA, curIcfA));
+	dc_wrli(videoPath, lctB, 1, 7, cp_icf(PB, curIcfB));
 }
 
 void initGraphics()
 {
 	createVideoBuffers();
-	loadPalette(PA, "PLANE_A.PAL");
-	loadPalette(PB, "PLANE_B.PAL");
+	readPalette(PA, "PLANE_A.PAL");
+	readPalette(PB, "PLANE_B.PAL");
 	spriteSheet = (u_char*)srqcmem(256 * 256, VIDEO2);
+	tileSheet   = (u_char*)srqcmem(256 * 256, VIDEO1);
+	rleBuffer   = (u_char*)srqcmem(DISC_ERROR_SIZE, VIDEO1);
+}
+
+void handleVideoSignal(sigCode)
+	int sigCode;
+{
+	if (sigCode == SIG_BLANK) {
+		frameDone = 1;
+		frameTick++;
+	}
 }

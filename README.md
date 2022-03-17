@@ -1,6 +1,12 @@
 # Nobelia
 
-## CD-i Game by Jeffrey Janssen
+## CD-i Game by Jeffrey Janssen - nobelia@nmotion.nl
+
+This is the Open Source version of Nobelia. 
+- The source code is identical to the released version.
+- Licensed music is not included in this version, all in-game music tracks are replaced by "The Traveller"
+- The source code and assets in this repository are meant for personal and/or educational use only
+- Distributing a compiled version of Nobelia in any form (digital or physical) is prohibited
 
 ### Controls
 
@@ -15,12 +21,9 @@
 
 **Button 2**
 - Detonate remote bombs (when you have this powerup)
-- Resurrect after death (debug option)
 
-### Known Issues
-- Game might not (correctly) run on all NTSC machines
-- There is game/audio stutter in some cases, for example after destroying objects with a bomb or opening chests
-- Titlescreen is unfinished, there is no "exit" function
+** Button 3**
+- Pause game
 
 ## Resources
 

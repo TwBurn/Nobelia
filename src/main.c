@@ -5,13 +5,13 @@
 #include <memory.h>
 #include <stdio.h>
 #include <setsys.h>
-#include "build.h"
-#include "graphics.h"
+
+#include "cdio.h"
 
 int intHandler(sigCode)
 	int sigCode;
 {
-	handleGameSignal(sigCode);
+	handleVideoSignal(sigCode);
 	handleAudioSignal(sigCode);
 }
 
@@ -22,6 +22,8 @@ void initSystem()
 	initGraphics();
 	initInput();
 	initAudio();
+	initGame();
+	initTitle();
 }
 
 void closeSystem()
@@ -31,25 +33,24 @@ void closeSystem()
 	closeAudio();
 }
 
-void loadData()
-{
-	int file = open("DATA.RTF", READ_);
-	loadSpriteSheet(file);
-	loadImage(file, ipDraw->videoBuffer);
-	loadSfx(file);
-	close(file);
-}
+void runMain() {
+	
+	if (readIntro() < 0) return;
 
+	startAudio();
+	runIntro();
+
+	if (readGameData() < 0) return;
+	
+	gameLoop();
+}
 
 int main(argc, argv)
 	int argc;
 	char* argv[];
 {
-	int curInput, oldInput;
-	/*printf(BUILD_VERSION);*/
 	initSystem();
-	gameStart();
-
+	runMain();	
 	closeSystem();
-	return 0;
+	exit(0);
 }

@@ -2,249 +2,531 @@
 #include <sysio.h>
 #include <ucm.h>
 #include "game.h"
+#include "graphics.h"
 #include "audio.h"
 
-Object* objectList[OBJ_COUNT];
-int olEmpty; /* Index of the first empty item */
 
-void debugObjects()
+Sprite* spriteList[SPRITE_COUNT];
+u_char  spritePrio[SPRITE_COUNT];
+/*                         0 1 2 3 4 5 6 7 8 9 A B C D E F */
+u_char actionPriority[] = {0,2,2,2,2,2,2,2,3,3,3,3,1,1,1,1};
+
+short spriteEmpty; /* Index of the first empty item */
+
+void debugSprites()
 {
 	int i;
-	for (i = 0; i < olEmpty; i++) {
-		printf("%2d) %02X %04X\n", i, objectList[i]->type, objectList[i]->action);
+	for (i = 0; i < spriteEmpty; i++) {
+		printf("%2d) %02X %04X\n", i, spriteList[i]->type, spriteList[i]->action);
 	}
 }
 
-void clearObjectList()
+void debugObjects(level)
+Level *level;
 {
 	int i;
-	for (i = 0; i < OBJ_COUNT; i++) {
-		objectList[i]->type = OT_NONE;
+	Sprite *sprite;
+	for (i = 0; i < SPRITE_COUNT; i++) {
+		sprite = &level->object[i];
+		if (sprite->type == ST_NONE) continue;
+		printf("%2d) %02X %04X\n", i, sprite->type, sprite->action);
 	}
-	olEmpty = 0;
 }
 
-void initObjectList()
+void clearSpriteList()
 {
 	int i;
-	Object *temp;
-	for (i = 0; i < OBJ_COUNT; i++) {
-		objectList[i] = &gameLevel.objects[i];
+	for (i = 0; i < SPRITE_COUNT; i++) {
+		spriteList[i]->type = ST_NONE;
+	}
+	spriteEmpty = 0;
+}
+
+void initSpriteList()
+{
+	int i;
+	Sprite *temp;
+	for (i = 0; i < SPRITE_COUNT; i++) {
+		spriteList[i] = &gameLevel.object[i];
 	}
 
 	/* Move non-empty objects to the start of the List */
-	olEmpty = -1;
-	for (i = 0; i < OBJ_COUNT; i++) {
-		if (objectList[i]->type == OT_NONE) {
-			/* Find first empty object */
-			if (olEmpty == -1) olEmpty = i;
+	spriteEmpty = -1;
+	for (i = 0; i < SPRITE_COUNT; i++) {
+		if (spriteList[i]->type == ST_NONE) {
+			/* Find first empty sprite */
+			if (spriteEmpty == -1) spriteEmpty = i;
 		}
 		else {
-			if (olEmpty >= 0) {
+			if (spriteEmpty >= 0) {
 				/* Swap empty with current, increase empty */
-				temp = objectList[i];
-				objectList[i] = objectList[olEmpty];
-				objectList[olEmpty] = temp;
+				temp = spriteList[i];
+				spriteList[i] = spriteList[spriteEmpty];
+				spriteList[spriteEmpty] = temp;
 
-				olEmpty++;
+				spriteEmpty++;
 			}
 		}
 	}
 }
 
-Object* makeObject(type, sprite, frame, x, y)
-	u_char type, sprite, frame;
+Sprite* makeSprite(type, tile, frame, x, y)
+	u_char type, tile, frame;
 	short  x, y;
 {
-	Object *object;
-	if (olEmpty >= OBJ_COUNT) {
+	Sprite *sprite;
+
+	if (spriteEmpty >= SPRITE_COUNT) {
 		return NULL;
 	}
 	else {
-		object = objectList[olEmpty++];
-		object->type = type;
-		object->sprite = sprite;
-		object->frame = frame;
-		object->x = x;
-		object->y = y;
-
-		return object;
+		sprite = spriteList[spriteEmpty++];
+		sprite->type = type;
+		sprite->tile = tile;
+		sprite->frame = frame;
+		sprite->x = x;
+		sprite->y = y;
+		
+		return sprite;
 	}
 }
 
-void stepPlayer(object)
-	Object *object;
+void walkAnim(sprite)
+	Sprite *sprite;
 {
-	u_short actType = object->action & 0xf000;
-	u_short actDir  = object->action & 0x0f00;
-	u_short actTime = object->action & 0x00ff;
-	int f;
-	
-	switch (actType) {
-		case ACT_DEAD: return;
-		case ACT_IDLE: break;
-		case ACT_FIRE:
-		case ACT_ACTIVE:
-			if (!actTime) {
-				object->action = ACT_IDLE | actDir;
-				object->frame &= 0xfc;
-			}
-			break;
-		case ACT_MOVE:
-			switch(actDir) {
-				/*Move object, update frame */
-				case DIR_LEFT:  object->frame = 0x05 + (((object->x--) >> 3) & 1); break;
-				case DIR_RIGHT: object->frame = 0x09 + (((object->x++) >> 3) & 1); break;
-				case DIR_UP:    object->frame = 0x0d + (((object->y--) >> 3) & 1); break;
-				case DIR_DOWN:  object->frame = 0x01 + (((object->y++) >> 3) & 1); break;
-			}
-			if (!actTime) {
-				object->action = ACT_ACTIVE | actDir | 0x0004; /* Free to move for the next 4 frames */
-				object->frame &= 0xfc;
-			}
-			break;
+	register u_short actDir  = sprite->action & 0x0f00;
+	switch(actDir) {
+		case DIR_LEFT:  sprite->frame = 0x05 + ((sprite->x >> 3) & 1); break;
+		case DIR_RIGHT: sprite->frame = 0x09 + ((sprite->x >> 3) & 1); break;
+		case DIR_UP:    sprite->frame = 0x0d + ((sprite->y >> 3) & 1); break;
+		case DIR_DOWN:  sprite->frame = 0x01 + ((sprite->y >> 3) & 1); break;
 	}
-	if (actTime) object->action--;
 }
 
-void stepAnim(object)
-	Object *object;
+void stepBurner(sprite)
+	Sprite *sprite;
 {
-	u_short actDir  = object->action & 0x0F00;
-	u_short actTime = object->action & 0x00FF;
-	u_short frameStep  = object->data & 0x00FF;
-	u_short frameCount = object->data >> 8;
-	u_char  speed = object->desc >> 4;
-	u_char  step  = object->desc & 0x0F;
+	register u_short actType = sprite->action & 0xf000;
+	if (actType != ACT_BURN) return;
+	if (frameTick & 1) {
+		sprite->frame = (frameTick >> 1) % 5;
+		if (sprite->frame == 0) attackSprite(sprite->x, sprite->y, 0, AT_FIRE, 0);
+	}
+}
+
+void stepTorch(sprite)
+	Sprite *sprite;
+{
+	sprite->frame = (((u_int)sprite + frameTick) >> 2) % 4;
+	if (sprite->frame == 3) sprite->frame = 1;
+}
+
+void stepPedestal(sprite)
+	Sprite *sprite;
+{
+	if (sprite->action == ACT_ACTIVE) {
+		stepTorch(sprite);
+	}
+	else {
+		sprite->frame = 3;
+	}
+}
+
+void activateBloom(sprite)
+	Sprite *sprite;
+{
+	register u_short actType = sprite->action & 0xf000;
+	register u_short actDir  = sprite->action & 0x0f00;
+	register u_short actTime = sprite->action & 0x00ff;
+	register u_short spriteTile = tile_index(sprite->x, sprite->y);
+
+	if (sprite->desc == 0) { sprite->desc = gameLevel.tileMap[spriteTile].top; }
+
+	if (actType == ACT_HIDDEN && actTime == 0) {
+		sprite->action = ACT_HIDDEN | actDir | (sprite->data >> 8);
+		switch (sprite->word) {
+			case AT_FIRE: placeFires(sprite->x, sprite->y, actDir, 0xFF, 1, 0); break;
+			case AT_PROJ: placeProjectiles(sprite->x, sprite->y, actDir); break;
+		}
+	}
+}
+
+void stepBloom(sprite)
+	register Sprite *sprite;
+{
+	register u_short actType = sprite->action & 0xf000;
+	register u_short actDir  = sprite->action & 0x0f00;
+	register u_short actTime = sprite->action & 0x00ff;
+	register u_short spriteTile = tile_index(sprite->x, sprite->y);
+	register u_char move = gameLevel.tileMap[spriteTile].move & 0x0F; 
+
+	if (actType == ACT_HIDDEN) {
+		if (actTime == 0) {
+			return;
+		}
+		else if (actTime == 1) {
+			sprite->action = ACT_ACTIVE | actDir | (sprite->data & 0x00ff);
+			sprite->frame = 0;
+			gameLevel.tileMap[spriteTile].move = 0xE0 | move; /* BLOCK_PLAYER | BLOCK_PROJECTILE | BLOCK_FIRE */
+		}
+		else {
+			sprite->action--;
+		}
+	}
+	else {
+		if (actTime == 0) {
+			sprite->frame++;
+			sprite->action |= sprite->data & 0x00ff;
+		}
+		else {
+			sprite->action--;
+		}
+
+		if (sprite->frame == 4) {
+			sprite->action = ACT_HIDDEN | actDir;
+			gameLevel.tileMap[spriteTile].move = 0x90 | move; /* BLOCK_PLAYER | DESTROYABLE */
+			gameLevel.tileMap[spriteTile].top = sprite->desc;
+			drawLevelTile(spriteTile);
+		}
+	}
+}
+
+void stepAnim(sprite)
+	Sprite *sprite;
+{
+	u_short actType = sprite->action & 0xF000;
+	u_short actDir  = sprite->action & 0x0F00;
+	u_short actTime = sprite->action & 0x00FF;
+	u_short frameStep  = sprite->data & 0x00FF;
+	u_short frameCount = sprite->data >> 8 & 0x7F;
+	u_char  speed = sprite->desc >> 4;
+	u_char  step  = sprite->desc & 0x0F;
+
 
 	if (step && (actTime % step) == 0) {
-		object->x += pix_dx(actDir) * speed;
-		object->y += pix_dy(actDir) * speed;
+		sprite->x += pix_dx(actDir) * speed;
+		sprite->y += pix_dy(actDir) * speed;
 	}
 	if (frameStep && (actTime % frameStep) == 0) {
-		object->frame = (object->frame + 1) % frameCount;
+		sprite->frame += sprite->data & 0x8000 ? frameCount - 1 : 1;
+		sprite->frame %= frameCount;
 	}
 
 	if (actTime) {
-		object->action--;
+		sprite->action--;
+	}
+	else if (actType == ACT_LOOP) {
+		sprite->action += (frameStep * frameCount) - 1;
 	}
 	else {
-		object->type = OT_NONE;
+		sprite->type = ST_NONE;
 	}
 }
 
-Object* findObject(x, y)
+Sprite* findSprite(x, y)
 	short x, y;
 {
 	int i;
-	Object *curObject;
-	for (i = olEmpty - 1; i >= 0; i--) {
-		curObject = objectList[i];
-		if (curObject->type != OT_NONE && curObject-> x == x && curObject->y == y) {
-			return curObject;
+	Sprite *sprite;
+	for (i = spriteEmpty - 1; i >= 0; i--) {
+		sprite = spriteList[i];
+		if (sprite-> x == x && sprite->y == y) {
+			switch(sprite->type) {
+				case ST_SWITCH:
+				case ST_PEDESTL:
+				case ST_CHEST:
+					return sprite;
+			}
 		}
 	}
 
 	return NULL;
 }
 
-void stepObjects()
+void stepSprites()
 {
 	int i;
-	Object *curObject;
+	Sprite *sprite;
 
 	/* We loop through the list in reverse to make it possible to add new objects to the list but not call stepObject() on those yet */
-	for (i = olEmpty - 1; i >= 0; i--) {
-		curObject = objectList[i];
+	for (i = spriteEmpty - 1; i >= 0; i--) {
+		sprite = spriteList[i];
 
-		switch (curObject->type)
+		switch (sprite->type)
 		{
-			case OT_PLAYER: stepPlayer(curObject);     break;
-			case OT_BOMB:   stepBomb(curObject);       break;
-			case OT_FIRE:   stepFire(curObject);       break;
-			case OT_CANNON: stepCannon(curObject);     break;
-			case OT_TORCH:  stepTorch(curObject);      break;
-			case OT_CNBALL: stepProjectile(curObject); break;
-			case OT_ANIM:   stepAnim(curObject);       break;
+			case ST_PLAYER:  stepPlayer(sprite);     break;
+			case ST_ENEMY:   stepEnemy(sprite);      break;
+			case ST_BOMB:    stepBomb(sprite);       break;
+			case ST_FIRE:    stepFire(sprite);       break;
+			case ST_CANNON:  stepCannon(sprite);     break;
+			case ST_TORCH:   stepTorch(sprite);      break;
+			case ST_CNBALL:  stepProjectile(sprite); break;
+			case ST_ANIM:    stepAnim(sprite);       break;
+			case ST_BURNER:  stepBurner(sprite);     break;
+			case ST_BLOOM:   stepBloom(sprite);      break;
+			case ST_PEDESTL: stepPedestal(sprite);   break;
+			case ST_BONE:    stepBone(sprite);       break;
+			case ST_SCRIPT:  invokeScript(sprite, sprite->action & 0x0fff, 0); break;
 		}
 		
-		
-		/* Check if we need to remove the current object */
-		if (curObject->type == OT_NONE) {
-			olEmpty--;
-			if (i < olEmpty) {
-				objectList[i] = objectList[olEmpty];
-				objectList[olEmpty] = curObject;
+		/* Check if we need to remove the current sprite */
+		if (sprite->type == ST_NONE) {
+			spriteEmpty--;
+			if (i < spriteEmpty) {
+				spriteList[i] = spriteList[spriteEmpty];
+				spriteList[spriteEmpty] = sprite;
 			}
 		}
 	}
 }
 
-void drawObject(object)
-	Object *object;
+void drawSpriteList()
 {
-	switch(object->action & 0xf000)	{
-		case ACT_HIDDEN: break;
-		default:
-			drawSprite(object->sprite + object->frame, object->x, object->y);
+	register int i;
+	register Sprite *sprite;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		spritePrio[i] = actionPriority[spriteList[i]->action >> 12];
+	}
+
+	for (i = spriteEmpty - 1; i >= 0; i--) {
+		sprite = spriteList[i];
+		if (spritePrio[i] == 1) drawSprite(sprite->tile + sprite->frame, sprite->x, sprite->y);
+	}
+	for (i = spriteEmpty - 1; i >= 0; i--) {
+		sprite = spriteList[i];
+		if (spritePrio[i] == 2) drawSprite(sprite->tile + sprite->frame, sprite->x, sprite->y);
+	}
+	for (i = spriteEmpty - 1; i >= 0; i--) {
+		sprite = spriteList[i];
+		if (spritePrio[i] == 3) drawSprite(sprite->tile + sprite->frame, sprite->x, sprite->y);
 	}
 }
 
-void drawObjects()
+void openExit(tileIndex)
+	register u_short tileIndex;
 {
-	int i;
-	for (i = 0; i < olEmpty; i++) {
-		drawObject(objectList[i]);
+	register int i;
+	for (i = 0; i < EXIT_COUNT; i++) {
+		if (gameLevel.exit[i].tile == tileIndex) {
+			gameLevel.exit[i].type &= 0x7f;
+		}
+	}
+}
+
+void startBurners() {
+	register int i;
+	register Sprite *sprite;
+	register u_short tileIndex;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_BURNER) {
+			sprite->action = ACT_BURN;
+			tileIndex = tile_index(sprite->x, sprite->y);
+
+			/* Unblock tile - Remove Top */
+			gameLevel.tileMap[tileIndex].move &= 0x0f; 
+			gameLevel.tileMap[tileIndex].top = 0;
+			drawLevelTile(tileIndex);
+		}
+	}
+}
+
+void toggleBurners(state)
+	int state;
+{
+	register int i;
+	register Sprite *sprite;
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_BURNER) {
+			if (state) sprite->action = ACT_BURN;
+			else sprite->action = ACT_HIDDEN;
+		}
+	}
+}
+
+void removeCannons()
+{
+	register int i;
+	register Sprite *sprite, *animObject;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_CANNON) {
+			sprite->type = ST_NONE;
+
+			animObject = makeSprite(ST_ANIM, 0xC4, 0, sprite->x, sprite->y);
+			if (animObject != NULL) {
+				animObject->action = ACT_ACTIVE | 11; /* Active for 12 frames */
+				animObject->data = 0x0403; /* 4 frames, 3 steps/frame*/
+			}
+		}
 	}
 }
 
 void explodeUserBombs()
 {
-	int i;
-	Object *object;
+	register int i;
+	register Sprite *sprite;
 
-	for (i = 0; i < olEmpty; i++) {
-		object = objectList[i];
-		if (object->type == OT_BOMB && ((object->action & 0xf000) == ACT_USER)) {
-			explodeBomb(object, DIR_NONE);
+	if (playerState.BombType != ACT_USER) return;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_BOMB && sprite->word == 1) {
+			explodeBomb(sprite, DIR_NONE);
 		}
 	}
 }
 
-void interactFireObject(x, y, dir)
-	short x, y, dir;
+void removeUserBombs()
 {
 	int i;
-	Object *object;
+	Sprite *sprite;
 
-	for (i = 0; i < olEmpty; i++) {
-		object = objectList[i];
-		switch (object->type) {
-			case OT_PLAYER:
-			case OT_SKELET:
-				if (object->action == ACT_DEAD) {}
-				/* Check distance to projectile */
-				else if (abs(object->x - x) + abs(object->y - y) < 16) {
-					object->data   = object->action;
-					object->action = ACT_DEAD;
-					object->sprite = 0xA0 - object->frame;
-				}
-				break;
-			case OT_BOMB:
-				if (x == object->x && y == object->y) {
-					explodeBomb(object, dir);
-				}
-				break;
-			case OT_CANNON:
-				if (x == object->x && y == object->y) {
-					object->type = OT_NONE;
-				}
-				break;
-			case OT_TORCH:
-				if (x == object->x && y == object->y) {
-					activateTorch(object);
-				}
-				break;
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_BOMB && sprite->word) {
+			removeBomb(sprite);
 		}
 	}
+}
+
+void removeTriggers()
+{
+	int i;
+	Sprite *sprite;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_TRIGGER) {
+			sprite->type = ST_NONE;
+		}
+	}
+}
+
+void killSprite(sprite) 
+	Sprite* sprite;
+{
+	register u_short actType = sprite->action & 0xF000;
+	if (actType == ACT_DEAD || actType == ACT_EXIT) return;
+
+	sprite->data   = sprite->action;
+	sprite->action = ACT_DEAD;
+	sprite->desc = sprite->tile;
+	sprite->tile = 0x80 - sprite->frame;
+
+	playSfx(SFX_DEAD);
+}
+
+Sprite* findFire(x, y)
+	register short x, y;
+{
+	register short dx, dy, i;
+	register Sprite *sprite;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		dx = sprite->x - x; dx = (dx < 0) ? -dx : dx;
+		dy = sprite->y - y; dy = (dy < 0) ? -dy : dy;
+
+		if (dx >= 16 || dy >= 16) continue; /* Too far away */
+
+		switch (sprite->type) {
+			case ST_FIRE: return sprite;
+		}
+	}
+	return NULL;
+}
+
+Sprite* attackSprite(x, y, dir, attackType, data)
+	register short x, y, dir;
+	register u_char attackType, data;
+{
+	register int i;
+	register short dx, dy;
+	register Sprite *sprite, *result = NULL;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		dx = sprite->x - x; dx = (dx < 0) ? -dx : dx;
+		dy = sprite->y - y; dy = (dy < 0) ? -dy : dy;
+
+		if (dx >= 16 || dy >= 16) continue; /* Too far away */
+
+		switch (sprite->type) {
+			case ST_PLAYER:
+				playerHit(attackType, data);
+				result = sprite;
+			break;
+			case ST_ENEMY:
+				enemyHit(sprite, attackType, data);
+				result = sprite;
+			break;
+			case ST_BOMB:
+				explodeBomb(sprite, dir);
+				result = sprite;
+			break;
+			case ST_CANNON:
+				sprite->type = ST_NONE;
+				result = sprite;
+			break;
+			case ST_TORCH:
+				activateTorch(sprite);
+				result = sprite;
+			break;
+			case ST_BLOOM:
+				activateBloom(sprite);
+				result = sprite;
+			break;
+		}
+
+	}
+
+	return result;
+}
+
+void setTrigger(trigger, state)
+	register Sprite *trigger;
+	register u_char state;
+{
+	register u_short tileIndex = tile_index(trigger->x, trigger->y);
+	register u_char prevTile = gameLevel.tileMap[tileIndex].top;
+
+	gameLevel.tileMap[tileIndex].top = trigger->tile;
+	trigger->tile = prevTile;
+	drawLevelTile(tileIndex);
+
+	trigger->desc = state;
+}
+
+void checkTrigger(x, y, state)
+	register u_short x, y;
+	register u_char state;
+{
+	register int i, scriptId = 0, count = 0;
+	Sprite *sprite, *trigger;
+
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_TRIGGER && sprite->x == x && sprite->y == y) {
+			setTrigger(sprite, state);
+			trigger = sprite;
+			scriptId = sprite->word;
+			break;
+		}
+	}
+
+	if (scriptId == 0) return;
+	playSfx(SFX_SWITCH);
+	for (i = 0; i < spriteEmpty; i++) {
+		sprite = spriteList[i];
+		if (sprite->type == ST_TRIGGER && sprite->word == scriptId) {
+			count += sprite->desc;
+		};
+	}
+
+	invokeScript(trigger, scriptId, count);
 }

@@ -1,1 +1,0 @@
-@echo #define BUILD_VERSION "BUILD %date% %time%\n">src\build.h
