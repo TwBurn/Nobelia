@@ -22,7 +22,7 @@ This is the Open Source version of Nobelia.
 **Button 2**
 - Detonate remote bombs (when you have this powerup)
 
-** Button 3**
+**Button 3**
 - Pause game
 
 ## Resources
