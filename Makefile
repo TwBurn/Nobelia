@@ -5,26 +5,30 @@ BUILD   = build
 SRC     = src
 
 #COMPILER AND LIBRARY LOCATIONS
-OS9C    = C:\CDI\OS9C
-CLIB    = $(OS9C)\lib
-MTOOLS  = C:\CDI\MASTER
-PATH    = $(OS9C)\bin;$(MTOOLS);%PATH%
-
+CDISDK = D:\Development\Git\cdi-sdk
+OS9C   = $(CDISDK)\dos\bin
+OS68K  = $(CDISDK)\OS9\68000
+OS9CDI = $(CDISDK)\OS9\CDI
+XCLIB  = $(OS68K)\lib
+XCDEF  = $(OS68K)\defs
+CLIB   = $(OS9CDI)\lib
+CDEF   = $(OS9CDI)\defs
+PATH   = $(OS9C);%PATH%
+DOSBOX = C:\Software\DOSBox-0.74-3\DOSBox.exe
 #COMPILER CONFIGURATION
 CC      = xcc
-CCFLAGS = -S -R=$(OUTPUT) -T=$(OUTPUT) -TO=osk -TP=68kI -l
+CCFLAGS = -eas=$(OUTPUT) -tp=68K,sc -v=$(CDEF) -bc -r
 ASFLAGS = -O=0 -S -R=$(OUTPUT) -T=$(OUTPUT) -TO=osk -TP=68kI
 LD      = l68
-MASTER  = vcdmastr.exe
 
 #FILES TO COMPILE
 FILES   = $(OUTPUT)\main.r $(OUTPUT)\intro.r $(OUTPUT)\cdio.r $(OUTPUT)\audio.r $(OUTPUT)\video.r $(OUTPUT)\graphics.r $(OUTPUT)\input.r $(OUTPUT)\game.r $(OUTPUT)\title.r $(OUTPUT)\object.r $(OUTPUT)\player.r $(OUTPUT)\enemy.r $(OUTPUT)\skelet.r $(OUTPUT)\scripts.r $(OUTPUT)\weapons.r
 
 #LINKER CONFIGURATION
-LDPARAM = -a -n=cdi_$(NAME) -o=$(BUILD)\$(NAME) $(CLIB)\cstart.r $(FILES) -l=$(CLIB)\cdi.l -l=$(CLIB)\cdisys.l -l=$(CLIB)\clib.l -l=$(CLIB)\cio.l -l=$(CLIB)\math.l -l=$(CLIB)\sys.l -l=$(CLIB)\usr.l
+LDPARAM = -a -n=cdi_$(NAME) -o=$(BUILD)\$(NAME) $(CLIB)\cstart.r $(FILES) -l=$(CLIB)\cdi.l -l=$(CLIB)\cdisys.l -l=$(CLIB)\clib.l -l=$(CLIB)\cio.l -l=$(CLIB)\math.l -l=$(CLIB)\sys.l -l=$(CLIB)\usr.l -l=$(XCLIB)\os_csl.l
 
 cd: link
-	$(MASTER) build.cd
+	$(DOSBOX) master.bat -exit
 
 all: link
 

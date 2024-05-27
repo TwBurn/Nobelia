@@ -6,7 +6,6 @@ This is the Open Source version of Nobelia.
 - The source code is identical to the released version.
 - Licensed music is not included in this version, all in-game music tracks are replaced by "The Traveller"
 - The source code and assets in this repository are meant for personal and/or educational use only
-- Distributing a compiled version of Nobelia in any form (digital or physical) is prohibited
 
 ### Controls
 
@@ -39,3 +38,6 @@ All assets in the game were either used from Open resources or created/adapted b
 - Character Sprites:
 	- Lanea Zimmerman (Sharm), Evert, withthelove: https://opengameart.org/content/tiny-16-expanded-character-sprites
 
+## Changelog
+- Makefile has been updated to use the compiler/toolset available from https://github.com/TwBurn/cdi-sdk
+- Use DOSBox to call `vcdmastr.exe` since this is a 16-bit application (see `master.bat`)

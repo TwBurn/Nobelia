@@ -1,7 +1,7 @@
 -a
 -n=cdi_nobelia
 -o=build\nobelia
-C:\CDI\OS9C\lib\cstart.r
+D:\Development\Git\cdi-sdk\OS9\CDI\lib\cstart.r
 out\main.r
 out\intro.r
 out\cdio.r
@@ -17,10 +17,11 @@ out\enemy.r
 out\skelet.r
 out\scripts.r
 out\weapons.r
--l=C:\CDI\OS9C\lib\cdi.l
--l=C:\CDI\OS9C\lib\cdisys.l
--l=C:\CDI\OS9C\lib\clib.l
--l=C:\CDI\OS9C\lib\cio.l
--l=C:\CDI\OS9C\lib\math.l
--l=C:\CDI\OS9C\lib\sys.l
--l=C:\CDI\OS9C\lib\usr.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\cdi.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\cdisys.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\clib.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\cio.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\math.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\sys.l
+-l=D:\Development\Git\cdi-sdk\OS9\CDI\lib\usr.l
+-l=D:\Development\Git\cdi-sdk\OS9\68000\lib\os_csl.l
